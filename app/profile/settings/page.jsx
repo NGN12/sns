@@ -132,11 +132,47 @@ export default function ProfileSettings() {
       // 아바타 이미지 업로드 (파일이 선택된 경우)
       let avatarUrl = profile.avatar_url;
       
+      // 기존 이미지 URL에서 파일 경로 추출
+      const deleteOldAvatar = async (oldAvatarUrl) => {
+        if (!oldAvatarUrl) return;
+        
+        try {
+          // URL에서 파일 경로 추출 (예: https://...supabase.co/storage/v1/object/public/avatars/filename.jpg)
+          const urlParts = oldAvatarUrl.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          
+          if (fileName && fileName.length > 0) {
+            const filePath = `avatars/${fileName}`;
+            
+            // 기존 파일 삭제
+            const { error } = await supabase.storage
+              .from('avatars')
+              .remove([filePath]);
+              
+            if (error) {
+              console.error('기존 아바타 삭제 실패:', error);
+            } else {
+              console.log('기존 아바타 삭제 성공:', filePath);
+            }
+          }
+        } catch (error) {
+          console.error('아바타 삭제 중 오류 발생:', error);
+        }
+      };
+      
       if (useDefaultAvatar) {
-        // 기본 아바타 사용 선택 시
+        // 기본 아바타 사용 선택 시 기존 이미지 삭제
+        if (profile.avatar_url) {
+          await deleteOldAvatar(profile.avatar_url);
+        }
         avatarUrl = DEFAULT_AVATAR_URL;
       } else if (avatarFile) {
         setUploading(true);
+        
+        // 기존 이미지가 있으면 삭제
+        if (profile.avatar_url) {
+          await deleteOldAvatar(profile.avatar_url);
+        }
         
         // 파일 이름 생성 (사용자 ID + 타임스탬프)
         const fileExt = avatarFile.name.split('.').pop();
