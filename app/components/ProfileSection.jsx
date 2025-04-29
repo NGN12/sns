@@ -173,8 +173,8 @@ export default function ProfileSection() {
       setUser(null); // 사용자 상태 즉시 초기화
       setShowLogout(false); // 로그아웃 메뉴 닫기
       
-      // 페이지 전환 없이 상태만 업데이트하거나, 필요하면 리다이렉트
-      router.push('/login');
+      // 로그인 페이지로 리다이렉트하기 전에 페이지 새로고침
+      window.location.href = '/login'; // 페이지를 새로고침하면서 로그인 페이지로 이동
     } catch (error) {
       console.error('로그아웃 에러:', error);
     } finally {

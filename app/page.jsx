@@ -9,6 +9,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(0)
+  const [postAuthors, setPostAuthors] = useState({}) // 게시물 작성자 정보 저장
   const observerRef = useRef(null)
   const POSTS_PER_PAGE = 20 // 트위터 스타일로 한 번에 20개 로드
   const loadedPostIds = useRef(new Set()) // 이미 로드된 게시물 ID를 추적하기 위한 Set
@@ -73,6 +74,10 @@ export default function Home() {
         )
         
         setPosts(prevPosts => [...prevPosts, ...postsWithCommentCounts])
+        
+        // 게시물 작성자 정보 가져오기
+        const userIds = uniquePosts.map(post => post.user_id)
+        await fetchPostAuthors(userIds)
       }
     } catch (err) {
       console.error('게시물 로딩 중 오류 발생:', err)
@@ -80,6 +85,39 @@ export default function Home() {
       setLoading(false)
     }
   }, [loading, hasMore, page])
+
+  // 게시물 작성자 정보 가져오기
+  const fetchPostAuthors = async (userIds) => {
+    try {
+      // 중복 제거
+      const uniqueUserIds = [...new Set(userIds)]
+      
+      // 이미 가져온 작성자 정보는 다시 가져오지 않음
+      const idsToFetch = uniqueUserIds.filter(id => !postAuthors[id])
+      
+      if (idsToFetch.length === 0) return
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, full_name, avatar_url')
+        .in('id', idsToFetch)
+      
+      if (error) {
+        console.error('작성자 정보 가져오기 오류:', error)
+        return
+      }
+      
+      // 작성자 정보 저장
+      const newAuthors = {}
+      data.forEach(profile => {
+        newAuthors[profile.id] = profile
+      })
+      
+      setPostAuthors(prev => ({ ...prev, ...newAuthors }))
+    } catch (error) {
+      console.error('작성자 정보 가져오기 실패:', error)
+    }
+  }
 
   // 현재 로그인한 사용자 확인
   const checkUser = async () => {
@@ -189,6 +227,33 @@ export default function Home() {
                 className="block"
               >
                 <div className="bg-zinc-800 p-4 rounded-lg shadow hover:bg-zinc-700 transition-colors">
+                  {/* 작성자 프로필 정보 표시 */}
+                  {postAuthors[post.user_id] && (
+                    <div className="flex items-center mb-3">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 mr-2">
+                        {postAuthors[post.user_id].avatar_url ? (
+                          <img
+                            src={postAuthors[post.user_id].avatar_url}
+                            alt="프로필 이미지"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                            👤
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-white">
+                          {postAuthors[post.user_id].full_name || postAuthors[post.user_id].username}
+                        </span>
+                        <span className="text-xs text-gray-400 ml-1">
+                          @{postAuthors[post.user_id].username}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
                   <h3 className="text-xl text-white mb-2">{post.title}</h3>
                   
                   <div className="text-gray-400 max-h-32 overflow-hidden mb-3">

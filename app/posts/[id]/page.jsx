@@ -17,11 +17,12 @@ export default function PostDetail({ params }) {
   const [error, setError] = useState('');
   const [isOwner, setIsOwner] = useState(false);  // 사용자가 본인의 게시물인지 체크
   const [currentUser, setCurrentUser] = useState(null);
-  // Remove these state variables as they're now handled in CommentSection
-  // const [comments, setComments] = useState([]);
-  // const [commentText, setCommentText] = useState('');
-  // const [commentAuthors, setCommentAuthors] = useState({});
-  // const [submitting, setSubmitting] = useState(false);
+  // 번역 관련 상태 추가
+  const [isTranslated, setIsTranslated] = useState(false);
+  const [translatedContent, setTranslatedContent] = useState('');
+  const [translating, setTranslating] = useState(false);
+  const [userLanguage, setUserLanguage] = useState('en');
+  const [originalContent, setOriginalContent] = useState('');
 
   useEffect(() => {
     async function fetchPostAndAuthor() {
@@ -30,6 +31,17 @@ export default function PostDetail({ params }) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           setCurrentUser(session.user);
+          
+          // 사용자의 언어 설정 가져오기
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('language')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (!profileError && profileData) {
+            setUserLanguage(profileData.language || 'en');
+          }
         }
         
         // 게시물 정보 가져오기
@@ -49,6 +61,7 @@ export default function PostDetail({ params }) {
         }
         
         setPost(postData);
+        setOriginalContent(postData.content); // 원본 내용 저장
         
         // 작성자 프로필 정보 가져오기
         const { data: authorData, error: authorError } = await supabase
@@ -68,9 +81,6 @@ export default function PostDetail({ params }) {
           setIsOwner(true);  // 본인의 게시물일 경우 삭제 가능
         }
         
-        // Remove this as it's now handled in CommentSection
-        // await fetchComments();
-        
       } catch (error) {
         console.error('게시물 로딩 실패:', error);
         setError('게시물을 불러오는데 실패했습니다.');
@@ -84,10 +94,52 @@ export default function PostDetail({ params }) {
     }
   }, [id]);
 
-  // Remove these functions as they're now handled in CommentSection
-  // const fetchComments = async () => { ... }
-  // const handleCommentSubmit = async (e) => { ... }
-  // const handleDeleteComment = async (commentId) => { ... }
+  // 번역 기능 처리
+  const handleTranslate = async () => {
+    if (isTranslated) {
+      // 이미 번역된 상태면 원본으로 되돌리기
+      setIsTranslated(false);
+      return;
+    }
+    
+    if (!post || !currentUser || translating) return;
+    
+    setTranslating(true);
+    
+    try {
+      // 이미 번역된 내용이 있으면 재사용
+      if (translatedContent) {
+        setIsTranslated(true);
+        setTranslating(false);
+        return;
+      }
+      
+      // 서버리스 함수 또는 API 라우트를 통해 번역 요청
+      const response = await fetch('/api/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: post.content,
+          targetLanguage: userLanguage,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('번역 요청 실패');
+      }
+      
+      const data = await response.json();
+      setTranslatedContent(data.translatedText);
+      setIsTranslated(true);
+    } catch (error) {
+      console.error('번역 실패:', error);
+      alert('번역에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const handleDelete = async () => {
     try {
@@ -96,7 +148,7 @@ export default function PostDetail({ params }) {
         if (post.image_url) {
           const imagePath = post.image_url.split('/').pop();
           const { error: storageError } = await supabase.storage
-            .from('post_images') // 실제 버킷 이름으로 변경해야 합니다
+            .from('post-images') // 'post_images'에서 'post-images'로 수정
             .remove([imagePath]);
           
           if (storageError) {
@@ -218,15 +270,27 @@ export default function PostDetail({ params }) {
                 </span>
               </div>
               
-              {/* 좋아요 버튼 */}
-              <div className="mt-2">
-                <PostLikeButton postId={post.id} currentUser={currentUser} />
-              </div>
+              {/* 번역 버튼 제거 - 여기에 있던 버튼 삭제 */}
             </div>
             
             {/* 게시물 내용 */}
             <div className="p-6">
-              <p className="text-gray-200 whitespace-pre-wrap">{post.content}</p>
+              <p className="text-gray-200 whitespace-pre-wrap">
+                {isTranslated ? translatedContent : post.content}
+              </p>
+              
+              {/* 번역 버튼 - 게시글 내용 오른쪽 하단에 추가 */}
+              {currentUser && (
+                <div className="flex justify-end mt-3">
+                  <button
+                    onClick={handleTranslate}
+                    disabled={translating}
+                    className="text-sm px-3 py-1 bg-zinc-700 text-zinc-300 rounded hover:bg-zinc-600 transition-colors"
+                  >
+                    {translating ? '번역 중...' : isTranslated ? '원문 보기' : '번역하기'}
+                  </button>
+                </div>
+              )}
               
               {/* 게시물 이미지가 있는 경우 표시 */}
               {post.image_url && (
@@ -238,6 +302,11 @@ export default function PostDetail({ params }) {
                   />
                 </div>
               )}
+              
+              {/* 좋아요 버튼 - 내용 아래로 이동 */}
+              <div className="mt-4">
+                <PostLikeButton postId={post.id} currentUser={currentUser} />
+              </div>
             </div>
           </div>
           

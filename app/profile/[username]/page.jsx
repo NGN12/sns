@@ -66,7 +66,24 @@ export default function Profile() {
         }
         
         if (postsData) {
-          setPosts(postsData);
+          // 각 게시물의 댓글 수를 가져오기 위한 추가 쿼리
+          const postsWithCommentCounts = await Promise.all(
+            postsData.map(async (post) => {
+              const { count, error: countError } = await supabase
+                .from('comments')
+                .select('id', { count: 'exact' })
+                .eq('post_id', post.id);
+              
+              if (countError) {
+                console.error('댓글 수 가져오기 오류:', countError);
+                return { ...post, comment_count: 0 };
+              }
+              
+              return { ...post, comment_count: count || 0 };
+            })
+          );
+          
+          setPosts(postsWithCommentCounts);
         }
 
         // 팔로워 수 가져오기
@@ -281,15 +298,21 @@ export default function Profile() {
                   </div>
                 )}
                 
+                {/* 게시물 목록 */}
+                
+                {/* ... 기존 코드 ... */}
+                
                 <div className="mt-4 flex space-x-6 text-gray-400">
                   <div className="flex items-center space-x-1">
                     <span>💬</span>
                     <span>{post.comment_count || 0}</span>
                   </div>
+                  {/* 리트윗 버튼 제거 
                   <div className="flex items-center space-x-1">
                     <span>🔄</span>
                     <span>{post.repost_count || 0}</span>
                   </div>
+                  */}
                   <div className="flex items-center space-x-1">
                     <span>❤️</span>
                     <span>{post.like_count || 0}</span>

@@ -83,16 +83,26 @@ export default function EditPost() {
     }
   }, [id, router]);
 
+  // 이미지 파일 선택 처리
   const handleImageChange = (e) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    
     const file = e.target.files[0];
+    if (!file) return;
+    
+    // 파일 크기 확인 (50MB = 50 * 1024 * 1024 bytes)
+    const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+    if (file.size > maxSize) {
+      setError('이미지 크기가 50MB를 초과합니다. 더 작은 이미지를 선택해주세요.');
+      e.target.value = ''; // 파일 선택 초기화
+      return;
+    }
+    
     setImageFile(file);
     setRemoveImage(false);
     
+    // 이미지 미리보기 생성
     const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
+    reader.onloadend = () => setImagePreview(reader.result);
   };
 
   const handleRemoveImage = () => {
